@@ -1,0 +1,35 @@
+{
+  "name": "feed-path",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "unset npm_config_prefix; . \"${NVM_DIR:-$HOME/.nvm}/nvm.sh\" --no-use && nvm use && vite --host",
+    "dev": "vite --host",
+    "build": "tsc --noEmit && tsc --noEmit -p collector && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p collector",
+    "collect": "node collector/run.ts",
+    "collect:dry": "node collector/run.ts --dry"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "@mozilla/readability": "^0.6.0",
+    "@types/node": "^22",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "fast-xml-parser": "^5.12.1",
+    "linkedom": "^0.18.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "zod": "^4.6.7"
+  }
+}

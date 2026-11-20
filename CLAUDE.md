@@ -1,0 +1,55 @@
+# Feed Path
+
+A personal feed (React, built with Vite, hosted on GitHub Pages), used on a MacBook and an iPhone (installed to the Home Screen). A collector on GitHub Actions reads the sources every 3 hours and once a day (around 09:30 Israel time, so it's ready by 10:00) has Claude score and summarize what's new, and writes the feed to a private gist that the app reads. See `PLAN.md` for the concepts, milestones and decisions.
+
+## How it's built
+
+Vite + React 19 + TypeScript. Node 22.18+ (`.nvmrc`; the collector runs `.ts` files directly with Node's type stripping). On this Mac `npm start` runs `nvm use` and then the dev server; `npm run dev` alone runs the local server; `npm run build` typechecks the app and the collector and builds into `dist/`.
+
+### Files in the gist (one private gist, three files, each with one writer)
+
+- `feed-path.json` (`AppFile` in `shared/types.ts`), written only by the app: sources, topics, links to summarize, my marks (read / saved / votes), settings.
+- `feed.json` (`FeedFile`), written only by the collector: entries, filtered headlines (2 days), source health, what happened to each link, the last 20 runs.
+- `collector.json` (`CollectorState`), written only by the collector: item keys Claude has looked at (`seen`, a week), feed URLs resolved from what was pasted, and `pending`: items read but not yet scored (`PendingItem`, ~0.7 KB each).
+- Both sides find the gist by the filename `feed-path.json` (first to run creates it). The collector PATCHes only its two files, so it never overwrites the app's edits.
+- `shared/types.ts` holds every shared type (types only, `import type`); `shared/seed.ts` the starting topics and sources (`updatedAt: 0`). **Never rename or reuse a topic or source id**: scores, hints, health and marks are keyed by them.
+
+### Collector (`collector/`, run by `.github/workflows/collect.yml`: reading every 3 hours, Claude once a day, or Run workflow by hand)
+
+- Schedule (`shared/schedule.ts`, used by the collector and the app): cron fires at 06:30 and 07:30 UTC (`CRON_UTC`, keep in step with `collect.yml`) because Israel changes clocks; scheduled runs pass `--morning`, and `isMorningSlot()` lets a run go ahead only from 09:00 Israel time and only if no scheduled run (`RunInfo.scheduled`) happened that local day. So it runs at ~09:30 in both seasons, still once if GitHub starts a trigger late; a morning trigger that isn't the slot does a reading-only pass instead. Manual runs always do a full run.
+- Reading-only passes (`--read-only`, cron `45 */3 * * *`, mapped to the flag by its cron string in `collect.yml`): read every source, add items not in `seen` or `pending` to `pending` (`slim()`: no full text, excerpt ≤ 800 chars except video descriptions), update health, `feed.lastRead` and `feed.waiting`, and stop: no Claude, no runs entry. They exist because busy feeds keep only their latest items (Ynet ~30 = about 16 h, The Times of Israel ~13 = about 12 h, NPR ~10), so one morning read would miss most of the previous day. The morning run takes `pending` (within the window) plus what's new; whatever Claude didn't get to (a failed call, left out of a reply) goes back to `pending`. The workflow's concurrency group runs one at a time; GitHub keeps only one waiting run per group, so heavy scheduler delays could drop a pass (harmless: the next one catches up). `nextRun()` gives the app's "next run" time.
+
+- `run.ts` is the whole run, in order: load files → read every enabled source (6 at a time) → add pending links → triage → merge / filter / summarize → prune → save. `--dry` uses `collector/out/` and stub scores / summaries (no Claude, no gist; for testing fetching and parsing); `--local` uses `collector/out/` with Claude. Secrets: `ANTHROPIC_API_KEY`, `GIST_TOKEN` (classic token, `gist` scope); optional repo variable `GIST_ID`.
+- Windows: items published in the last 48 h that aren't in `seen`; a source's first run looks back 24 h and takes at most 15 (then 40 per run), so adding a source doesn't flood the feed. The same URL from two feeds is one item (canonical URL hash, `canonicalUrl()` drops tracking params).
+- `sources.ts`: `resolveFeed()` (YouTube @handle / channel URL → channel RSS via the page's canonical link; a site URL → its `<link rel="alternate">` feed or the usual paths; search → Google News RSS URL for the edition) and `readFeed()` (RSS 2.0, Atom, RSS 1.0/RDF; YouTube `media:group` description; Google News: publisher from `<source>`, kind `headline`, no snippet). `content:encoded` over 1,500 chars is used as the full text.
+- `extract.ts`: article text with Mozilla Readability on linkedom (≥ 600 chars = `full`, else the og:description = `excerpt`), capped at `MAX_ARTICLE_CHARS` (30,000) to bound cost; YouTube pages give the full `shortDescription`. Some sites refuse article fetches (The Times of Israel answers 403; NYT is paywalled): those are summarized from the feed's excerpt and the entry says "summary from the excerpt only". Don't try to get around a site's blocking.
+- `claude.ts`: model `claude-haiku-5-5`, effort `low`, structured outputs (`messages.parse` + `zodOutputFormat`), `maxRetries: 4`. `triage()`: up to 50 candidates per call with headline + 300-char excerpt + source hint, and the last 48 h of entries (up to 200) as `S1…`; returns per-topic scores (0–100) and `same_as` (an `S` ref or an earlier `C` ref; later refs are dropped). `summarize()`: one call per new story, up to 3 docs from different sources; writes in the language of doc 1 (`lang` = BCP-47). Web text goes inside tags with `<>` escaped, and both system prompts say it's material, not instructions. A `refusal` throws `Refused`: those items are marked seen (links get an error) so they don't repeat every run; other errors leave items unseen to retry next run.
+- Merge rules: items with `same_as` an existing entry are added to its `sources` (topic scores = max). New stories pass when any enabled topic's score ≥ its `minScore`, or the group has a requested link; the rest go to `filtered`. Entry id = `e_` + hash of the first item's key. A requested link's entry has `publishedAt` = when it was summarized, so an old article isn't buried.
+- Pruning: entries by `createdAt` older than `settings.keepDays` (default 10); filtered after 2 days (max 400); link results after 30 days; `seen` after 7 days. The run line (tokens, cost at Haiku list price) goes to the log and the Actions step summary.
+
+### App (`src/`)
+
+- Routing is the URL hash: `#feed`, `#feed/filtered`, `#saved`, `#sources`, `#topics` (`readHash()` in `src/App.tsx`).
+- `src/state/store.ts`: the app's state is `AppFile` (localStorage `feedPath.v1`), `useAppState()`, `update(fn)`, `replaceState()` for sync. `src/state/actions.ts`: every change goes through here and stamps `updatedAt`. Deletes are soft (`deletedAt`) with an Undo toast; `liveSources()` / `liveTopics()` hide them.
+- `src/state/feed.ts`: the feed (read-only, localStorage `feedPath.feed`), `useFeed()`, `setFeed(text)` (compares the whole text, since reading passes change only health / `lastRead` / `waiting`).
+- Sync (`src/state/sync.ts`, same pattern as piano-path / workout-path, see their notes for the rate-limit handling): token in localStorage `feedPath.gist`; the Workout Path / Piano Path token works too. Every full read of the gist (not a 304) and every write's reply also hand `feed.json` to `setFeed()` (`takeFeed()`), so a feed written between our read and write isn't missed. Polls every 2 min while visible with the ETag, so an unchanged gist costs nothing.
+- Merge (`src/lib/merge.ts`): sources / topics / links per item by `updatedAt`; `marks.read` union (latest time, dropped after 30 days); `marks.saved` / `marks.votes` per entry by `at`; settings from the newer copy. `serialize()` sorts keys so equal copies compare equal. Saving an entry stores a copy (`SavedMark.entry`), so Saved outlives the feed.
+- Views: `Feed` (topic chips with unread counts, search, Latest grouped by day / Top by score, Unread only, Your links waiting for a run, Add link sheet, Mark these as read, link to Filtered out), `Saved`, `Sources` (add by URL with `sourceFromUrl()` guessing YouTube vs site, Google News search sheet, per-source health, edit sheet), `Topics` (description, threshold stepper 20–95 by 5, counts in the feed / filtered). `components/EntryCard.tsx` (tap to open: bullets, why it matters, every source with basis, scores, Save, 👍 / 👎, Mark unread); `SyncSheet.tsx` (device sync, collector's last run + problems + tokens, keep-days setting); `ui.tsx` (`Seg`, `Switch`, `Stepper`, `Sheet`, `useSessionState`).
+- Hebrew: summary text gets `dir="rtl"` when the entry's `lang` is right-to-left (`isRtl()` in `src/lib/text.ts`); source titles use `dir="auto"`. Links render only if http(s) (`safeUrl()`).
+- `npm run dev` then `http://localhost:5173/?demo` loads `collector/out/feed.json` (from `npm run collect:dry`) into the feed, dev only, for working on the UI without the gist.
+- Styling: plain CSS in `src/styles.css`, tokens in `:root` (Workout Path's system with a blue accent `#2554D9` / dark `#86A8FF`).
+- PWA: `public/manifest.webmanifest`, `public/icon.svg`, PNG icons in `public/icons/` (full-bleed, made from the SVG with `qlmanage` + `sips`), `public/sw.js` (production only; network first for the page, cache first for hashed assets; never touches the GitHub API).
+
+## Rules for changes
+
+- Design mobile-first (iPhone ~390 px), tap targets at least 44 px, safe-area padding. Below 768 px: top bar + bottom tab bar (4 tabs); from 768 px a sidebar. Check both, and Hebrew entries.
+- Colours only from the CSS tokens in `:root`; light and dark themes must both stay readable.
+- New state fields must be optional in `normalize()` (app) and in the collector's `normalizeApp()` / `normalizeFeed()` / `normalizeState()`, so older copies still load.
+- Keep each gist file to its one writer. The collector must never write `feed-path.json`.
+- Changing a Claude prompt or schema: run `npm run collect -- --local` with a key, or Run workflow, and read the results before relying on it.
+- Run `npm run build` after edits; it must pass with no type errors (app and collector).
+
+## Deploy
+
+- `.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main` (Pages source = GitHub Actions). Live at https://itzik-a.github.io/feed-path/ once the repo exists.
+- `.github/workflows/collect.yml` runs the collector (three cron lines: two morning slots and the 3-hourly reading). Repo secrets: `ANTHROPIC_API_KEY`, `GIST_TOKEN`. Its last step re-enables the workflow through the API on each scheduled run, so GitHub's 60-day inactivity pause doesn't stop it.

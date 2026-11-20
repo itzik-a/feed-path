@@ -1,0 +1,61 @@
+name: Collect
+
+# Two kinds of run, writing feed.json + collector.json to the private gist:
+# - The morning run, once a day around 09:30 Israel time so everything is ready by 10:00: reads the
+#   sources, asks Claude to score and summarize everything new. Run workflow by hand does the same.
+#   Cron is in UTC and Israel changes its clocks, so it fires at 06:30 and 07:30 UTC (09:30 in summer /
+#   in winter); with --morning the collector goes ahead only on the first of them at or after 09:00 in
+#   Israel, once a day (shared/schedule.ts), and the other one just reads. Keep the two in step.
+# - Reading only, every 3 hours (at :45): saves new items for the morning, no Claude. Busy feeds keep
+#   only their latest items (Ynet about 16 hours), so a single morning read would miss half a day.
+on:
+  schedule:
+    - cron: "30 6 * * *"
+    - cron: "30 7 * * *"
+    - cron: "45 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # only for the keep-alive step below
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Collect, score and summarize
+        run: |
+          case "$SCHEDULE" in
+            "45 */3 * * *") MODE=--read-only ;;
+            "") MODE= ;;
+            *) MODE=--morning ;;
+          esac
+          # Until the secrets are set: skip (no GIST_TOKEN) or only read (no ANTHROPIC_API_KEY), with a warning instead of a failure.
+          if [ -z "$GIST_TOKEN" ]; then echo "::warning::GIST_TOKEN secret is not set; skipping."; exit 0; fi
+          if [ -z "$ANTHROPIC_API_KEY" ] && [ "$MODE" != "--read-only" ]; then echo "::warning::ANTHROPIC_API_KEY secret is not set; reading only."; MODE=--read-only; fi
+          node collector/run.ts $MODE
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          # optional repo variable: skips looking the gist up by filename
+          GIST_ID: ${{ vars.GIST_ID }}
+      # GitHub turns scheduled workflows off in a repo with no activity for 60 days.
+      # Re-enabling the workflow through the API on each scheduled run keeps it on without commits.
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/collect.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
