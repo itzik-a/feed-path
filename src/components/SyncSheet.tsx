@@ -6,6 +6,7 @@ import { useAppState } from "../state/store";
 import { TOKEN_URL, connect, disconnect, syncNow, useSyncStatus, type SyncStatus } from "../state/sync";
 import { ago, clock } from "../lib/time";
 import { IconExternal } from "./Icons";
+import { ThemePicker } from "./ThemePicker";
 
 export const REPO = "https://github.com/itzik-a/feed-path";
 export const RUN_URL = `${REPO}/actions/workflows/collect.yml`;
@@ -175,6 +176,11 @@ export function SyncSheet({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <p className="muted small">Saved entries are kept for good, whatever this says.</p>
+        </section>
+        <section className="dlg-section" aria-labelledby="theme-title">
+          <h3 id="theme-title">Appearance</h3>
+          <ThemePicker />
+          <p className="muted small">System follows this device's light or dark setting. Each device keeps its own choice.</p>
         </section>
       </div>
     </dialog>

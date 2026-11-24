@@ -38,6 +38,7 @@ Vite + React 19 + TypeScript. Node 22.18+ (`.nvmrc`; the collector runs `.ts` fi
 - Hebrew: summary text gets `dir="rtl"` when the entry's `lang` is right-to-left (`isRtl()` in `src/lib/text.ts`); source titles use `dir="auto"`. Links render only if http(s) (`safeUrl()`).
 - `npm run dev` then `http://localhost:5173/?demo` loads `collector/out/feed.json` (from `npm run collect:dry`) into the feed, dev only, for working on the UI without the gist.
 - Styling: plain CSS in `src/styles.css`, tokens in `:root` (Workout Path's system with a blue accent `#2554D9` / dark `#86A8FF`).
+- **Theme**: System / Light / Dark per device (`src/lib/theme.ts`, localStorage "feedPath.theme", nothing stored = System), chosen in settings (`components/ThemePicker.tsx`). It sets `<html data-theme="light|dark">`; an inline script in `index.html` does it before the first paint. Dark tokens are `:root[data-theme="dark"]`, a dark-only rule is `:where(:root[data-theme="dark"]) .x { … }` (same specificity as `.x`). Never use `@media (prefers-color-scheme: dark)` in CSS.
 - PWA: `public/manifest.webmanifest`, `public/icon.svg`, PNG icons in `public/icons/` (full-bleed, made from the SVG with `qlmanage` + `sips`), `public/sw.js` (production only; network first for the page, cache first for hashed assets; never touches the GitHub API).
 
 ## Rules for changes

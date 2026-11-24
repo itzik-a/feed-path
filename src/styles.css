@@ -36,33 +36,32 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0C0B0A;
-    --surface: #171513;
-    --surface-2: #211F1C;
-    --ink: #F1EEEA;
-    --muted: #A39C94;
-    --line: rgba(255, 255, 255, .08);
-    --track: rgba(255, 255, 255, .09);
-    --accent: #86A8FF;
-    --accent-2: #A9C1FF;
-    --accent-soft: #17213B;
-    --on-accent: #0A1430;
-    --good: #4ADE9A;
-    --good-soft: #10301F;
-    --danger: #FF7676;
-    --raised: #312D29;
-    --toast-bg: #F1EEEA;
-    --toast-ink: #15120F;
-    --toast-action: #2554D9;
-    --shadow-lg: 0 2px 6px rgba(0, 0, 0, .35), 0 16px 40px rgba(0, 0, 0, .55);
-    --glass: rgba(23, 21, 19, .74);
-    --glass-line: rgba(255, 255, 255, .07);
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
-    --shadow-chip: 0 1px 3px rgba(0, 0, 0, .4);
-    color-scheme: dark;
-  }
+/* Dark: <html data-theme="dark">, set from the choice in settings or the system's (src/lib/theme.ts) */
+:root[data-theme="dark"] {
+  --bg: #0C0B0A;
+  --surface: #171513;
+  --surface-2: #211F1C;
+  --ink: #F1EEEA;
+  --muted: #A39C94;
+  --line: rgba(255, 255, 255, .08);
+  --track: rgba(255, 255, 255, .09);
+  --accent: #86A8FF;
+  --accent-2: #A9C1FF;
+  --accent-soft: #17213B;
+  --on-accent: #0A1430;
+  --good: #4ADE9A;
+  --good-soft: #10301F;
+  --danger: #FF7676;
+  --raised: #312D29;
+  --toast-bg: #F1EEEA;
+  --toast-ink: #15120F;
+  --toast-action: #2554D9;
+  --shadow-lg: 0 2px 6px rgba(0, 0, 0, .35), 0 16px 40px rgba(0, 0, 0, .55);
+  --glass: rgba(23, 21, 19, .74);
+  --glass-line: rgba(255, 255, 255, .07);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  --shadow-chip: 0 1px 3px rgba(0, 0, 0, .4);
+  color-scheme: dark;
 }
 
 /* ---------- Base ---------- */
@@ -117,7 +116,7 @@ kbd {
   gap: 12px;
   min-width: 0;
 }
-@media (prefers-color-scheme: dark) { .card { box-shadow: inset 0 0 0 1px var(--line); } }
+:where(:root[data-theme="dark"]) .card { box-shadow: inset 0 0 0 1px var(--line); }
 
 .tag {
   display: inline-flex; align-items: center; gap: 4px; justify-self: start;
@@ -518,3 +517,6 @@ textarea.text-input { line-height: 1.45; }
 }
 .dlg-body { min-width: 0; }
 .dlg .btn { white-space: normal; text-align: center; }
+
+/* Theme picker in settings (components/ThemePicker.tsx) */
+.theme-seg { justify-self: start; }
