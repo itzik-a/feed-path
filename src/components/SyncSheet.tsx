@@ -7,6 +7,7 @@ import { TOKEN_URL, connect, disconnect, syncNow, useSyncStatus, type SyncStatus
 import { ago, clock } from "../lib/time";
 import { IconExternal } from "./Icons";
 import { ThemePicker } from "./ThemePicker";
+import { backdropClose } from "../lib/backdrop";
 
 export const REPO = "https://github.com/itzik-a/feed-path";
 export const RUN_URL = `${REPO}/actions/workflows/collect.yml`;
@@ -54,7 +55,7 @@ export function SyncSheet({ onClose }: { onClose: () => void }) {
   const cost = (tokens.in * 0.1 + tokens.out * 0.5) / 1_000_000;
 
   return (
-    <dialog ref={ref} className="dlg" aria-labelledby="dlg-title" onClose={onClose} onClick={(e) => { if (e.target === ref.current) ref.current.close(); }}>
+    <dialog ref={ref} className="dlg" aria-labelledby="dlg-title" onClose={onClose} {...backdropClose(ref)}>
       <div className="dlg-body">
         <div className="dlg-grip" aria-hidden="true" />
         <div className="card-head">

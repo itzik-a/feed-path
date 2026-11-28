@@ -1,6 +1,7 @@
 /* Small shared UI pieces. */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { IconMinus, IconPlus } from "./Icons";
+import { backdropClose } from "../lib/backdrop";
 
 /** State kept in sessionStorage, so a filter survives switching tabs but not closing the app. */
 export function useSessionState<T>(key: string, initial: T) {
@@ -47,7 +48,7 @@ export function Sheet({ title, onClose, children, actions }: { title: string; on
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { ref.current?.showModal(); }, []);
   return (
-    <dialog ref={ref} className="dlg" aria-labelledby="sheet-title" onClose={onClose} onClick={(e) => { if (e.target === ref.current) ref.current.close(); }}>
+    <dialog ref={ref} className="dlg" aria-labelledby="sheet-title" onClose={onClose} {...backdropClose(ref)}>
       <div className="dlg-body">
         <div className="dlg-grip" aria-hidden="true" />
         <div className="card-head">
