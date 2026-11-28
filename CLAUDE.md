@@ -1,5 +1,7 @@
 # Feed Path
 
+> **Archived on 2026-11-28.** Feed Path was merged into [Knowledge Path](https://github.com/itzik-a/knowledge-path): the feed is reviewed in its Inbox (Feed tab), the collector is `feed/` there and runs from the vault repo, and the feed lives on the vault's `feed` branch. This repo is kept read-only for its history.
+
 A personal feed (React, built with Vite, hosted on GitHub Pages), used on a MacBook and an iPhone (installed to the Home Screen). A collector on GitHub Actions reads the sources every 3 hours and once a day (around 09:30 Israel time, so it's ready by 10:00) has Claude score and summarize what's new, and writes the feed to a private gist that the app reads. See `PLAN.md` for the concepts, milestones and decisions.
 
 ## How it's built
